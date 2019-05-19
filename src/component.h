@@ -74,11 +74,11 @@
                     {                                                          \
                       struct {                                                 \
                         uint32_t id;                                           \
-                        typeof(v) COMP_NAME                                    \
+                        typeof(v) COMP_NAME;                                   \
                       } ITER_VAR = {k, v};                                     \
                       { __VA_ARGS__ }                                          \
                     });                                                        \
-    while (0)
+  } while (0)
 
 /**
  * Union of all entities that have the given components.

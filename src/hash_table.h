@@ -16,14 +16,14 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
   for (uint32_t hash_table_##NAME##_iter_idx = 0;                              \
        hash_table_##NAME##_iter_idx < (TABLE)->cap;                            \
        hash_table_##NAME##_iter_idx++) {                                       \
-    struct hash_table_##NAME##_elem hash_table_##NAME##_iter_e =               \
-        (TABLE)->elems[hash_table_##NAME##_iter_idx];                          \
-    if (hash_table_##NAME##_iter_e.hash &&                                     \
+    struct hash_table_##NAME##_elem *hash_table_##NAME##_iter_e =              \
+        &(TABLE)->elems[hash_table_##NAME##_iter_idx];                         \
+    if (hash_table_##NAME##_iter_e->hash &&                                    \
         !hash_table_##NAME##__is_entry_deleted(                                \
             (TABLE), hash_table_##NAME##_iter_idx)) {                          \
-      uint32_t KEY_NAME = hash_table_##NAME##_iter_e.key;                      \
-      typeof(&hash_table_##NAME##_iter_e.val) VAL_NAME =                       \
-          &hash_table_##NAME##_iter_e.val;                                     \
+      uint32_t KEY_NAME = hash_table_##NAME##_iter_e->key;                     \
+      typeof(hash_table_##NAME##_iter_e->val) *VAL_NAME =                      \
+          &hash_table_##NAME##_iter_e->val;                                    \
       { __VA_ARGS__ }                                                          \
     }                                                                          \
   }
