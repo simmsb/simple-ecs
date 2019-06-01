@@ -26,7 +26,7 @@ struct velocity_storage {
 DEFINE_COMPONENT(velocity, struct velocity_storage);
 REGISTER_COMPONENT(velocity, struct velocity_storage);
 
-REGISTER_SYSTEM(update_velocty_values, {
+REGISTER_SYSTEM(update_velocity_values, {
   FOR_JOIN_COMPONENT_2(position, velocity, d, {
     d.position->x += d.velocity->dx;
     d.position->y += d.velocity->dy;
