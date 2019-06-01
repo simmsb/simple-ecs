@@ -9,7 +9,7 @@
 #include "bit_array.h"
 #include "common_macros.h"
 
-static const uint32_t hash_table_initial_cap = 16;
+static const uint32_t hash_table_initial_cap = 64;
 static const uint8_t hash_table_load_factor_to_grow = 90;
 
 #define HASH_TABLE_ITER(NAME, KEY_NAME, VAL_NAME, TABLE, ...)                  \
@@ -19,8 +19,8 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     struct hash_table_##NAME##_elem *hash_table_##NAME##_iter_e =              \
         &(TABLE)->elems[hash_table_##NAME##_iter_idx];                         \
     if (hash_table_##NAME##_iter_e->hash &&                                    \
-        !hash_table_##NAME##__is_entry_deleted(                                \
-            (TABLE), hash_table_##NAME##_iter_idx)) {                          \
+        !hash_table_##NAME##_is_entry_deleted((TABLE),                         \
+                                              hash_table_##NAME##_iter_idx)) { \
       uint32_t KEY_NAME = hash_table_##NAME##_iter_e->key;                     \
       typeof(hash_table_##NAME##_iter_e->val) *VAL_NAME =                      \
           &hash_table_##NAME##_iter_e->val;                                    \
@@ -49,11 +49,15 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
                                   VALTYPE v);                                  \
   VALTYPE *hash_table_##NAME##_lookup(struct hash_table_##NAME *table,         \
                                       uint32_t k);                             \
-  bool hash_table_##NAME##_delete(struct hash_table_##NAME *table, uint32_t k);
+  bool hash_table_##NAME##_delete(struct hash_table_##NAME *table,             \
+                                  uint32_t k);                                 \
+  bool hash_table_##NAME##_is_entry_deleted(struct hash_table_##NAME *table,   \
+                                            uint32_t idx);                     \
+  void hash_table_##NAME##_clear(struct hash_table_##NAME *table);
 
 #define MAKE_HASH(VALTYPE, NAME)                                               \
-  bool hash_table_##NAME##__is_entry_deleted(struct hash_table_##NAME *table,  \
-                                             uint32_t idx) {                   \
+  bool hash_table_##NAME##_is_entry_deleted(struct hash_table_##NAME *table,   \
+                                            uint32_t idx) {                    \
     return get_bit_in_bitarray(table->deleted, idx);                           \
   }                                                                            \
                                                                                \
@@ -111,28 +115,26 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
         return;                                                                \
       }                                                                        \
                                                                                \
-      /* printf("elem at: %d, k: %d, v: %d, deleted?: %d\n", idx,              \
-       * table->elems[idx].key, table->elems[idx].val,                         \
-       * hash_table_ ## NAME ## __is_entry_deleted(table, idx)); */            \
+      /* fprintf(stderr, "elem at: %d, k: %d, deleted?: %d\n", idx,            \
+       * table->elems[idx].key, */                                             \
+      /* hash_table_##NAME##_is_entry_deleted(table, idx));  */                \
                                                                                \
       uint32_t current_elem_probes =                                           \
           hash_table_##NAME##__max_probes(table, table->elems[idx].hash, idx); \
                                                                                \
+      /* the element is deleted, just replace it  */                           \
+      if (hash_table_##NAME##_is_entry_deleted(table, idx)) {                  \
+                                                                               \
+        /* undelete  */                                                        \
+        hash_table_##NAME##__reset_deleted(table, idx);                        \
+                                                                               \
+        table->elems[idx] = e;                                                 \
+                                                                               \
+        return;                                                                \
+      }                                                                        \
       /* if we're here, the element was occupied or deleted  */                \
       /* steal from the rich, give to the poor  */                             \
       if (current_elem_probes < to_insert_elem_probes) {                       \
-                                                                               \
-        /* the element is deleted, just replace it  */                         \
-        if (hash_table_##NAME##__is_entry_deleted(table, idx)) {               \
-                                                                               \
-          /* undelete  */                                                      \
-          hash_table_##NAME##__reset_deleted(table, idx);                      \
-                                                                               \
-          table->elems[idx] = e;                                               \
-                                                                               \
-          return;                                                              \
-        }                                                                      \
-                                                                               \
         /* element wasn't deleted, swap element to insert with it and continue \
          */                                                                    \
         SWAP(e, table->elems[idx]);                                            \
@@ -173,7 +175,7 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
       }                                                                        \
                                                                                \
       /* current element isn't deleted, and both the hash and keys match  */   \
-      if (!hash_table_##NAME##__is_entry_deleted(table, idx) &&                \
+      if (!hash_table_##NAME##_is_entry_deleted(table, idx) &&                 \
           current_hash == hash && table->elems[idx].key == k) {                \
         return idx;                                                            \
       }                                                                        \
@@ -205,7 +207,7 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     for (uint32_t i = 0; i < table->cap; i++) {                                \
       struct hash_table_##NAME##_elem e = table->elems[i];                     \
                                                                                \
-      if (e.hash && !hash_table_##NAME##__is_entry_deleted(table, i)) {        \
+      if (e.hash && !hash_table_##NAME##_is_entry_deleted(table, i)) {         \
         hash_table_##NAME##__insert(&new_table, e);                            \
       }                                                                        \
     }                                                                          \
@@ -252,7 +254,6 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     if (idx < 0) {                                                             \
       return NULL;                                                             \
     }                                                                          \
-                                                                               \
     return &table->elems[idx].val;                                             \
   }                                                                            \
                                                                                \
@@ -267,6 +268,12 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     hash_table_##NAME##__mark_deleted(table, idx);                             \
     table->num_elems--;                                                        \
     return true;                                                               \
+  }                                                                            \
+  void hash_table_##NAME##_clear(struct hash_table_##NAME *table) {            \
+    memset(table->elems, 0,                                                    \
+           sizeof(struct hash_table_##NAME##_elem) * table->cap);              \
+    memset(table->deleted, 0, table->cap / 8);                                 \
+    table->num_elems = 0;                                                      \
   }
 
 #endif // __HASH_H_

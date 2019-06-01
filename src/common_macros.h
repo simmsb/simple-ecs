@@ -47,4 +47,6 @@
     (B) = temp;                                                                \
   } while (0)
 
+#define ARRAY_LEN(A) (sizeof(A) / sizeof(*A))
+
 #endif // __COMMON_MACROS_H_

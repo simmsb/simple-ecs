@@ -2,6 +2,7 @@
 #define __COMPONENT_H_
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "hash_set.h"
@@ -11,6 +12,16 @@
 
 // Components of the entity component system
 
+struct component_def {
+  const char *const name;
+  const uint32_t id;
+  void *const storage;
+  void *add_value;
+  void *(*const lookup_value)(uint32_t ent_id);
+  void (*const delete_value)(uint32_t ent_id);
+  void (*const clear_everything)(void);
+};
+
 #define COMPONENT_DEF(NAME, TYPE)                                              \
   struct component_##NAME##_def {                                              \
     const char *const name;                                                    \
@@ -19,16 +30,19 @@
     void (*const add_value)(uint32_t ent_id, TYPE val);                        \
     TYPE *(*const lookup_value)(uint32_t ent_id);                              \
     void (*const delete_value)(uint32_t ent_id);                               \
+    void (*const clear_everything)(void);                                      \
   };
 
 #define DEFINE_COMPONENT(NAME, TYPE)                                           \
   DEFINE_HASH(TYPE, component_##NAME##_storage);                               \
-  COMPONENT_DEF(NAME, TYPE);
+  COMPONENT_DEF(NAME, TYPE);                                                   \
+  extern struct component_##NAME##_def NAME;
 
 #define REGISTER_COMPONENT(NAME, TYPE)                                         \
   MAKE_HASH(TYPE, component_##NAME##_storage);                                 \
-  static struct component_##NAME##_def NAME                                    \
-      __attribute__((used, section("component_def_array")));                   \
+  struct component_##NAME##_def NAME;                                          \
+  static struct component_##NAME##_def *component_ptr__##NAME                  \
+      __attribute__((used, section("component_def_array"))) = &NAME;           \
   static const uint32_t component_##NAME##_id = __COUNTER__;                   \
   void component_##NAME##_add_value(uint32_t ent_id, TYPE val) {               \
     hash_table_component_##NAME##_storage_insert(NAME.storage, ent_id, val);   \
@@ -39,6 +53,9 @@
   void component_##NAME##_delete_value(uint32_t ent_id) {                      \
     hash_table_component_##NAME##_storage_delete(NAME.storage, ent_id);        \
   }                                                                            \
+  void component_##NAME##_clear_everything(void) {                             \
+    hash_table_component_##NAME##_storage_clear(NAME.storage);                 \
+  }                                                                            \
   static void component_init__##NAME(void) __attribute__((constructor));       \
   static void component_init__##NAME(void) {                                   \
     memcpy(&NAME,                                                              \
@@ -48,7 +65,8 @@
                .storage = hash_table_component_##NAME##_storage_new(),         \
                .add_value = &component_##NAME##_add_value,                     \
                .lookup_value = &component_##NAME##_lookup_value,               \
-               .delete_value = &component_##NAME##_delete_value},              \
+               .delete_value = &component_##NAME##_delete_value,               \
+               .clear_everything = &component_##NAME##_clear_everything},      \
            sizeof(struct component_##NAME##_def));                             \
   }
 
@@ -79,6 +97,10 @@
                       { __VA_ARGS__ }                                          \
                     });                                                        \
   } while (0)
+
+// NOTE(optimisation): Potential optimisation point here, we could select the
+// smallest hash table as the base one to iterate over, this would minimise the
+// number of entities that we have to check exist in each component table.
 
 /**
  * Union of all entities that have the given components.

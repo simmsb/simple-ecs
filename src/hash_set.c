@@ -2,8 +2,8 @@
 #include <stdint.h>
 
 #include "bit_array.h"
-#include "hash_set.h"
 #include "common_macros.h"
+#include "hash_set.h"
 
 bool hash_set_is_entry_deleted(struct hash_set *table, uint32_t idx) {
   return get_bit_in_bitarray(table->deleted, idx);
@@ -27,7 +27,7 @@ uint32_t hash_set_hash_fun(uint32_t k) {
   return k * hash_constant;
 }
 
-uint32_t hash_set__fix_hash(uint32_t h) {
+static uint32_t hash_set__fix_hash(uint32_t h) {
   if (h) {
     return h;
   }
@@ -42,11 +42,6 @@ uint32_t hash_set_hash_idx(struct hash_set *table, uint32_t hash) {
 uint32_t hash_set_max_probes(struct hash_set *table, uint32_t hash,
                              uint32_t idx) {
   return (table->cap + idx - hash_set_hash_idx(table, hash)) & table->mask;
-}
-
-static void hash_set__set_elem(struct hash_set *table, uint32_t idx, uint32_t h,
-                               uint32_t k) {
-  table->elems[idx] = (struct hash_set_elem){h, k};
 }
 
 static void hash_set__insert(struct hash_set *table, struct hash_set_elem e) {
@@ -184,7 +179,6 @@ bool hash_set_contains(struct hash_set *table, uint32_t k) {
 }
 
 bool hash_set_delete(struct hash_set *table, uint32_t k) {
-  uint32_t hash = hash_set__fix_hash(hash_set_hash_fun(k));
   int64_t idx = hash_set__lookup(table, k);
 
   if (idx < 0) {

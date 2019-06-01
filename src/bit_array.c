@@ -25,7 +25,7 @@ bool set_bit_in_bitarray(uint8_t *bitarray, size_t idx, bool val) {
 
   bool old_val = get_bit_in_bitarray(bitarray, idx);
 
-  bitarray[arr_idx] &= (val << bit_idx);
+  bitarray[arr_idx] = (bitarray[arr_idx] & ~(1 << bit_idx)) | (val << bit_idx);
 
   return old_val;
 }
